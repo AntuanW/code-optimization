@@ -4,9 +4,9 @@ NEW  := MMult0
 # sample makefile
 #
 
-CC         := gcc
+CC         := clang
 LINKER     := $(CC)
-CFLAGS     := -O2 -Wall -msse3
+CFLAGS     := -O2 -Wall -target arm64-apple-macos
 LDFLAGS    := -lm
 
 UTIL       := copy_matrix.o \

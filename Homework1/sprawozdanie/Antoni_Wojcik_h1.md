@@ -25,8 +25,29 @@
 [Źródło: Wikipedia (niestety bardzo ciężko o porządną dokumentacje od Apple)](https://en.wikipedia.org/wiki/Apple_M1#cite_note-anandtech-1) <br>
 [Źródło: Cpu-monkey](https://www.cpu-monkey.com/en/cpu-apple_m1) <br>
 
-### II Optymalizacje
+### II Zmiany wynikające z architektury procesora
+Aby tutorial działał poprawnie, dokonałem następujących zmian w `makefile`: <br>
+Zmieniłem
+```MakeFile
+...
+CC         := gcc
+LINKER     := $(CC)
+CFLAGS     := -O2 -Wall -msse3
+LDFLAGS    := -lm
+...
+```
+Na:
+```MakeFile
+...
+CC         := clang
+LINKER     := $(CC)
+CFLAGS     := -O2 -Wall -target arm64-apple-macos
+LDFLAGS    := -lm
+...
+```
 
-### III Wyniki
+### III Optymalizacje
 
-### IV Podsumowanie
+### IV Wyniki
+
+### V Podsumowanie
