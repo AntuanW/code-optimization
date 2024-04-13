@@ -88,59 +88,67 @@ void PackMatrixB( int k, double *b, int ldb, double *b_to )
 
 #include <arm_neon.h>
 
-typedef float32x2_t v2df_t;
+typedef float64x2_t v2df_t;
 
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc) {
-    /* Define ARM NEON registers for the computation */
-    float32x2_t c_00_c_10_vreg = vdup_n_f32(0);
-    float32x2_t c_01_c_11_vreg = vdup_n_f32(0);
-    float32x2_t c_02_c_12_vreg = vdup_n_f32(0);
-    float32x2_t c_03_c_13_vreg = vdup_n_f32(0);
-    float32x2_t c_20_c_30_vreg = vdup_n_f32(0);
-    float32x2_t c_21_c_31_vreg = vdup_n_f32(0);
-    float32x2_t c_22_c_32_vreg = vdup_n_f32(0);
-    float32x2_t c_23_c_33_vreg = vdup_n_f32(0);
-    
-    /* Loop through each element of the matrices */
-    for (int p = 0; p < k; p++) {
-        float32x2_t a_0p_a_1p_vreg = vld1_f32((float32_t *)a);
-        float32x2_t a_2p_a_3p_vreg = vld1_f32((float32_t *)(a + 2));
-        float32x2_t b_p0_vreg = vdup_n_f32(*b);
-        float32x2_t b_p1_vreg = vdup_n_f32(*(b + 1));
-        float32x2_t b_p2_vreg = vdup_n_f32(*(b + 2));
-        float32x2_t b_p3_vreg = vdup_n_f32(*(b + 3));
-        
-        /* Perform matrix multiplication using ARM NEON intrinsics */
-        c_00_c_10_vreg = vfma_lane_f32(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg, 0);
-        c_01_c_11_vreg = vfma_lane_f32(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg, 0);
-        c_02_c_12_vreg = vfma_lane_f32(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg, 0);
-        c_03_c_13_vreg = vfma_lane_f32(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg, 0);
-        c_20_c_30_vreg = vfma_lane_f32(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg, 0);
-        c_21_c_31_vreg = vfma_lane_f32(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg, 0);
-        c_22_c_32_vreg = vfma_lane_f32(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg, 0);
-        c_23_c_33_vreg = vfma_lane_f32(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg, 0);
-        
-        /* Move to the next column of matrix B */
-        b += 4;
-        /* Move to the next row of matrix A */
-        a += 4;
-    }
-    
-    /* Store the results back to matrix C */
-    c[0] += c_00_c_10_vreg[0];
-    c[1] += c_01_c_11_vreg[0];
-    c[2] += c_02_c_12_vreg[0];
-    c[3] += c_03_c_13_vreg[0];
-    c[4] += c_00_c_10_vreg[1];
-    c[5] += c_01_c_11_vreg[1];
-    c[6] += c_02_c_12_vreg[1];
-    c[7] += c_03_c_13_vreg[1];
-    c[8] += c_20_c_30_vreg[0];
-    c[9] += c_21_c_31_vreg[0];
-    c[10] += c_22_c_32_vreg[0];
-    c[11] += c_23_c_33_vreg[0];
-    c[12] += c_20_c_30_vreg[1];
-    c[13] += c_21_c_31_vreg[1];
-    c[14] += c_22_c_32_vreg[1];
-    c[15] += c_23_c_33_vreg[1];
+void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc )
+{
+  int p;
+  v2df_t
+    c_00_c_10_vreg,    c_01_c_11_vreg,    c_02_c_12_vreg,    c_03_c_13_vreg,
+    c_20_c_30_vreg,    c_21_c_31_vreg,    c_22_c_32_vreg,    c_23_c_33_vreg,
+    a_0p_a_1p_vreg,
+    a_2p_a_3p_vreg,
+    b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg; 
+
+  c_00_c_10_vreg = vdupq_n_f64(0);   
+  c_01_c_11_vreg = vdupq_n_f64(0);
+  c_02_c_12_vreg = vdupq_n_f64(0); 
+  c_03_c_13_vreg = vdupq_n_f64(0); 
+  c_20_c_30_vreg = vdupq_n_f64(0);   
+  c_21_c_31_vreg = vdupq_n_f64(0);  
+  c_22_c_32_vreg = vdupq_n_f64(0);   
+  c_23_c_33_vreg = vdupq_n_f64(0); 
+
+  for ( p = 0; p < k; p++ ){
+    a_0p_a_1p_vreg = vld1q_f64(a);
+    a_2p_a_3p_vreg = vld1q_f64(a + 2);
+    a += 4;
+
+    b_p0_vreg = vdupq_n_f64(*b++);       
+    b_p1_vreg = vdupq_n_f64(*b++);   
+    b_p2_vreg = vdupq_n_f64(*b++);   
+    b_p3_vreg = vdupq_n_f64(*b++);  
+
+    /* First row and second rows */
+    c_00_c_10_vreg = vmlaq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg);
+    c_01_c_11_vreg = vmlaq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg);
+    c_02_c_12_vreg = vmlaq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg);
+    c_03_c_13_vreg = vmlaq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg);
+
+    /* Third and fourth rows */
+    c_20_c_30_vreg = vmlaq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg);
+    c_21_c_31_vreg = vmlaq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg);
+    c_22_c_32_vreg = vmlaq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg);
+    c_23_c_33_vreg = vmlaq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg);
+  }
+
+  C( 0, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 0);  
+  C( 0, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 0);  
+  C( 0, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 0);  
+  C( 0, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 0);  
+
+  C( 1, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 1);  
+  C( 1, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 1);  
+  C( 1, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 1);  
+  C( 1, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 1);  
+
+  C( 2, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 0);  
+  C( 2, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 0);  
+  C( 2, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 0);  
+  C( 2, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 0);  
+
+  C( 3, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 1);  
+  C( 3, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 1);  
+  C( 3, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 1);  
+  C( 3, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 1);  
 }
