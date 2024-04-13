@@ -52,21 +52,23 @@ LDFLAGS    := -lm
 Wykonując `make run` oraz `PlotAll` otrzymałem wykres prezentujący brak jakichkolwiek optymalizacji. ![](/sprawozdanie/compare_MMult0_MMult0.png)
 
 #### Optymalizacja 1
-Dokonano optymalizacji poprzez zastosowanie funkcji `AddDot`, która jest wywoływana dla każdego elementu macierzy wynikowej C. 
+Dokonano optymalizacji poprzez zastosowanie funkcji `AddDot`, która jest wywoływana dla każdego elementu macierzy wynikowej C oraz dodano makra. 
 Wynik: ![](compare_MMult0_MMult1.png)
 
 #### Optymalizacja 2
-W kolejnej wersji kodu wprowadzono kolejną optymalizację poprzez unrolling pętli wewnętrznej, czyli "rozwinięcie" jej przez 4 iteracje. Wynik: ![](compare_MMult1_MMult2.png)
+W kolejnej wersji kodu wprowadzono kolejną optymalizację poprzez unrolling pętli wewnętrznej, czyli "rozwinięcie" jej przez 4 iteracje.
+Wynik: ![](compare_MMult1_MMult2.png)
 
 Powysze optymalizacje nie wpłynęły znacząco na wydajność, są jedynie podstawą dalszych optymalizacji.
 
 #### Optymalizacja (1x4) 3
 W kolejnej iteracji optymalizacji kodu wprowadzono kolejną zmianę, dzieląc operacje mnożenia macierzy na mniejsze bloki wewnątrz funkcji `MY_MMult`.
-Zmiany w kodzie obejmują dodanie nowej funkcji AddDot1x4, która oblicza cztery kolejne elementy macierzy wynikowej C jednocześnie. Wynik:
-![](compare_MMult2_MMult_1x4_3.png)
+Zmiany w kodzie obejmują dodanie nowej funkcji AddDot1x4, która oblicza cztery kolejne elementy macierzy wynikowej C jednocześnie.
+Wynik: ![](compare_MMult2_MMult_1x4_3.png)
 
 #### Optymalizacja (1x4) 4
 Zamiast wywoływać funkcję `AddDot`, każda z czterech iteracji w funkcji `AddDot1x4` wykonuje bezpośrednio operacje mnożenia macierzy i dodawania, co pozwala uniknąć kosztu wywoływania funkcji.
+Nastąpił dodatkowo unrolling pętli wewnętrznej.
 Wynik: ![](compare_MMult_1x4_3_MMult_1x4_4.png)
 
 #### Optymalizacja (1x4) 5
@@ -92,7 +94,6 @@ Wynik: ![](compare_MMult_1x4_8_MMult_1x4_9.png)
 #### Optymalizacja (4x4) 3
 Dzięki unrollingu pętli i obliczaniu 4x4 bloków macierzy C naraz, zwiększa się lokalność danych. Oznacza to, że dane potrzebne do obliczeń są bardziej prawdopodobne do przechowywania w cache'u procesora, co może znacznie przyspieszyć wykonywanie operacji.
 Wynik: ![](compare_MMult2_MMult_4x4_3.png)
-
 
 #### Optymalizacja (4x4) 4
 Zmieniono kod poprzez zastąpienie wywołań funkcji AddDot przez bezpośrednie obliczenia w funkcji AddDot4x4 oraz usunięcie pętli wewnętrznej. Dodatkowo, dostęp do elementów macierzy został zoptymalizowany poprzez bezpośrednie odwołanie się do nich.
@@ -124,7 +125,7 @@ Wynik: ![](compare_MMult_4x4_8_MMult_4x4_9.png)
 Wykorzystanie instrukcji wektorowych i rejestrów wektorowych (`__m128d`) do przyspieszenia obliczeń.
 Zamiast przetwarzać pojedyncze liczby zmiennoprzecinkowe, obliczenia są wykonywane na parach wartości (`double`) w jednym rejestrze wektorowym.
 <B> Uwaga! </B><br>
-Z uwagi na architekturę mojego procesora musiałem dokonać następujących zmian:
+Z uwagi na architekturę mojego procesora musiałem dokonać następujących zmian: <br>
 
 ``` C
 #include <arm_neon.h>  // Include NEON intrinsics header for ARM architecture
@@ -206,62 +207,10 @@ W swojej wersji:
 Wynik: ![](compare_MMult_4x4_9_MMult_4x4_10.png)
 
 #### Optymalizacja (4x4) 11
-W tej wersji kodu dodano parametry `mc` i `kc`, które określają rozmiar bloków. Algorytm jest teraz zorganizowany w taki sposób, że obliczenia są wykonywane na blokach o rozmiarze `mc x kc` macierzy `C`, co może zwiększyć wydajność poprzez lepsze wykorzystanie pamięci podręcznej procesora i umożliwienie optymalizacji pętli. Dodano również funkcję `InnerKernel`, która jest odpowiedzialna za obliczenia na bloku `mc x kc`, co pozwala na lepszą modularność kodu i czytelność.
+W tej wersji kodu dodano parametry `mc` i `kc`, które określają rozmiar bloków. Algorytm jest teraz zorganizowany w taki sposób, że obliczenia są wykonywane na blokach o rozmiarze `mc` x `kc` macierzy `C`, co może zwiększyć wydajność poprzez lepsze wykorzystanie pamięci podręcznej procesora i umożliwienie optymalizacji pętli. Dodano również funkcję `InnerKernel`, która jest odpowiedzialna za obliczenia na bloku `mc` x `kc`, co pozwala na lepszą modularność kodu i czytelność.<br>
 Kod (musiałem dokonać znów zmiany w kodzie, aby działał na moim procesorze):
 ``` C
 #include <arm_neon.h>
-
-/* Define macros so that the matrices are stored in column-major order */
-#define A(i,j) a[ (j)*lda + (i) ]
-#define B(i,j) b[ (j)*ldb + (i) ]
-#define C(i,j) c[ (j)*ldc + (i) ]
-
-/* Block sizes */
-#define mc 256
-#define kc 128
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
-
-/* Declare AddDot4x4 function */
-void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc );
-
-/* Routine for computing C = A * B + C */
-void InnerKernel( int m, int n, int k, double *a, int lda, 
-                                       double *b, int ldb,
-                                       double *c, int ldc );
-
-void MY_MMult( int m, int n, int k, double *a, int lda, 
-                                    double *b, int ldb,
-                                    double *c, int ldc )
-{
-  int i, p, pb, ib;
-
-  /* This time, we compute a mc x n block of C by a call to the InnerKernel */
-
-  for ( p=0; p<k; p+=kc ){
-    pb = min( k-p, kc );
-    for ( i=0; i<m; i+=mc ){
-      ib = min( m-i, mc );
-      InnerKernel( ib, n, pb, &A( i,p ), lda, &B(p, 0 ), ldb, &C( i,0 ), ldc );
-    }
-  }
-}
-
-void InnerKernel( int m, int n, int k, double *a, int lda, 
-                                       double *b, int ldb,
-                                       double *c, int ldc )
-{
-  int i;
-
-  for (int j=0; j<n; j+=4 ){        /* Loop over the columns of C, unrolled by 4 */
-    for ( i=0; i<m; i+=4 ){        /* Loop over the rows of C */
-      /* Update C( i,j ), C( i,j+1 ), C( i,j+2 ), and C( i,j+3 ) in
-	 one routine (four inner products) */
-
-      AddDot4x4( k, &A( i,0 ), lda, &B( 0,j ), ldb, &C( i,j ), ldc );
-    }
-  }
-}
 
 void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc )
 {
@@ -344,229 +293,92 @@ void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int l
   C( 3, 0 ) += c_20_c_30_vreg[1];  C( 3, 1 ) += c_21_c_31_vreg[1];  
   C( 3, 2 ) += c_22_c_32_vreg[1];  C( 3, 3 ) += c_23_c_33_vreg[1]; 
 }
-
 ```
 Wynik: ![](compare_MMult_4x4_10_MMult_4x4_11.png)
 
 #### Optymalizacja (4x4) 12
-W tej wersji kodu dodano funkcję `PackMatrixA`, która jest odpowiedzialna za pakowanie kolumn macierzy `A` do bufora `packedA`. Następnie ten bufor jest wykorzystywany w funkcji `InnerKernel`, aby obliczyć wartości macierzy `C`. Dodano również parametry `pb` i `ib` do pętli w funkcji `MY_MMult`, które określają rozmiar bloków obliczeń, co pozwala na lepszą kontrolę nad operacjami na macierzach.
+W tej wersji kodu dodano funkcję `PackMatrixA`, która jest odpowiedzialna za pakowanie kolumn macierzy `A` do bufora `packedA`. Następnie ten bufor jest wykorzystywany w funkcji `InnerKernel`, aby obliczyć wartości macierzy `C`. Dodano również parametry `pb` i `ib` do pętli w funkcji `MY_MMult`, które określają rozmiar bloków obliczeń, co pozwala na lepszą kontrolę nad operacjami na macierzach.<br>
 Kod (musiałem dokonać znów zmiany w kodzie, aby działał na moim procesorze):
 ``` C
 #include <arm_neon.h>
 
-/* Create macros so that the matrices are stored in column-major order */
-#define A(i,j) a[ (j)*lda + (i) ]
-#define B(i,j) b[ (j)*ldb + (i) ]
-#define C(i,j) c[ (j)*ldc + (i) ]
+typedef float64x2_t v2df_t;
 
-/* Block sizes */
-#define mc 256
-#define kc 128
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
-
-/* Function declarations */
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc);
-void PackMatrixA(int k, double *a, int lda, double *a_to);
-
-void MY_MMult(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc);
-
-void InnerKernel(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc)
+void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc )
 {
-    int i, j;
-    double packedA[m * k];
+  int p;
+  v2df_t
+    c_00_c_10_vreg,    c_01_c_11_vreg,    c_02_c_12_vreg,    c_03_c_13_vreg,
+    c_20_c_30_vreg,    c_21_c_31_vreg,    c_22_c_32_vreg,    c_23_c_33_vreg,
+    a_0p_a_1p_vreg,
+    a_2p_a_3p_vreg,
+    b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg;
 
-    for (j = 0; j < n; j += 4)
-    { /* Loop over the columns of C, unrolled by 4 */
-        for (i = 0; i < m; i += 4)
-        { /* Loop over the rows of C */
-            /* Update C(i,j), C(i,j+1), C(i,j+2), and C(i,j+3) in one routine (four inner products) */
-            PackMatrixA(k, &A(i, 0), lda, &packedA[i * k]);
-            AddDot4x4(k, &packedA[i * k], 4, &B(0, j), ldb, &C(i, j), ldc);
-        }
-    }
-}
+  double 
+    *b_p0_pntr, *b_p1_pntr, *b_p2_pntr, *b_p3_pntr;
 
-void MY_MMult(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc)
-{
-    int i, p, pb, ib;
+  b_p0_pntr = &B( 0, 0 );
+  b_p1_pntr = &B( 0, 1 );
+  b_p2_pntr = &B( 0, 2 );
+  b_p3_pntr = &B( 0, 3 );
 
-    /* Compute a mc x n block of C by a call to the InnerKernel */
-    for (p = 0; p < k; p += kc)
-    {
-        pb = min(k - p, kc);
-        for (i = 0; i < m; i += mc)
-        {
-            ib = min(m - i, mc);
-            InnerKernel(ib, n, pb, &A(i, p), lda, &B(p, 0), ldb, &C(i, 0), ldc);
-        }
-    }
-}
+  c_00_c_10_vreg = vdupq_n_f64(0);
+  c_01_c_11_vreg = vdupq_n_f64(0);
+  c_02_c_12_vreg = vdupq_n_f64(0);
+  c_03_c_13_vreg = vdupq_n_f64(0);
+  c_20_c_30_vreg = vdupq_n_f64(0);
+  c_21_c_31_vreg = vdupq_n_f64(0);
+  c_22_c_32_vreg = vdupq_n_f64(0);
+  c_23_c_33_vreg = vdupq_n_f64(0);
 
-void PackMatrixA(int k, double *a, int lda, double *a_to)
-{
-    int j;
+  for ( p = 0; p < k; p++ ){
+    a_0p_a_1p_vreg = vld1q_f64(&A( 0, p ));
+    a_2p_a_3p_vreg = vld1q_f64(&A( 2, p ));
 
-    for (j = 0; j < k; j++)
-    { /* loop over columns of A */
-        double *a_ij_pntr = &A(0, j);
+    b_p0_vreg = vdupq_n_f64(*b_p0_pntr++);
+    b_p1_vreg = vdupq_n_f64(*b_p1_pntr++);
+    b_p2_vreg = vdupq_n_f64(*b_p2_pntr++);
+    b_p3_vreg = vdupq_n_f64(*b_p3_pntr++);
 
-        *a_to++ = *a_ij_pntr;
-        *a_to++ = *(a_ij_pntr + 1);
-        *a_to++ = *(a_ij_pntr + 2);
-        *a_to++ = *(a_ij_pntr + 3);
-    }
-}
+    c_00_c_10_vreg = vmlaq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg);
+    c_01_c_11_vreg = vmlaq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg);
+    c_02_c_12_vreg = vmlaq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg);
+    c_03_c_13_vreg = vmlaq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg);
 
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc)
-{
-    int p;
-    float64x2_t c_00_c_10_vreg, c_01_c_11_vreg, c_02_c_12_vreg, c_03_c_13_vreg,
-        c_20_c_30_vreg, c_21_c_31_vreg, c_22_c_32_vreg, c_23_c_33_vreg,
-        a_0p_a_1p_vreg, a_2p_a_3p_vreg,
-        b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg;
+    c_20_c_30_vreg = vmlaq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg);
+    c_21_c_31_vreg = vmlaq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg);
+    c_22_c_32_vreg = vmlaq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg);
+    c_23_c_33_vreg = vmlaq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg);
+  }
 
-    double *b_p0_pntr, *b_p1_pntr, *b_p2_pntr, *b_p3_pntr;
+  C( 0, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 0);
+  C( 0, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 0);
+  C( 0, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 0);
+  C( 0, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 0);
 
-    b_p0_pntr = &B(0, 0);
-    b_p1_pntr = &B(0, 1);
-    b_p2_pntr = &B(0, 2);
-    b_p3_pntr = &B(0, 3);
+  C( 1, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 1);
+  C( 1, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 1);
+  C( 1, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 1);
+  C( 1, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 1);
 
-    c_00_c_10_vreg = vdupq_n_f64(0.0);
-    c_01_c_11_vreg = vdupq_n_f64(0.0);
-    c_02_c_12_vreg = vdupq_n_f64(0.0);
-    c_03_c_13_vreg = vdupq_n_f64(0.0);
-    c_20_c_30_vreg = vdupq_n_f64(0.0);
-    c_21_c_31_vreg = vdupq_n_f64(0.0);
-    c_22_c_32_vreg = vdupq_n_f64(0.0);
-    c_23_c_33_vreg = vdupq_n_f64(0.0);
+  C( 2, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 0);
+  C( 2, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 0);
+  C( 2, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 0);
+  C( 2, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 0);
 
-    for (p = 0; p < k; p++)
-    {
-        a_0p_a_1p_vreg = vld1q_f64(&A(0, p));
-        a_2p_a_3p_vreg = vld1q_f64(&A(2, p));
-
-        b_p0_vreg = vdupq_n_f64(*b_p0_pntr++);
-        b_p1_vreg = vdupq_n_f64(*b_p1_pntr++);
-        b_p2_vreg = vdupq_n_f64(*b_p2_pntr++);
-        b_p3_vreg = vdupq_n_f64(*b_p3_pntr++);
-
-        c_00_c_10_vreg = vfmaq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg);
-        c_01_c_11_vreg = vfmaq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg);
-        c_02_c_12_vreg = vfmaq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg);
-        c_03_c_13_vreg = vfmaq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg);
-
-        c_20_c_30_vreg = vfmaq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg);
-        c_21_c_31_vreg = vfmaq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg);
-        c_22_c_32_vreg = vfmaq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg);
-        c_23_c_33_vreg = vfmaq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg);
-    }
-
-    for (int idx = 0; idx < 2; ++idx)
-    {
-        if (idx == 0 || idx == 2 || idx == 4 || idx == 6)
-        {
-            c[idx] += vgetq_lane_f64(c_00_c_10_vreg, 0);
-            c[idx + 1] += vgetq_lane_f64(c_01_c_11_vreg, 0);
-            c[idx + 2] += vgetq_lane_f64(c_02_c_12_vreg, 0);
-            c[idx + 3] += vgetq_lane_f64(c_03_c_13_vreg, 0);
-            c[idx + 4] += vgetq_lane_f64(c_20_c_30_vreg, 0);
-            c[idx + 5] += vgetq_lane_f64(c_21_c_31_vreg, 0);
-            c[idx + 6] += vgetq_lane_f64(c_22_c_32_vreg, 0);
-            c[idx + 7] += vgetq_lane_f64(c_23_c_33_vreg, 0);
-        }
-        else
-        {
-            c[idx] += vgetq_lane_f64(c_00_c_10_vreg, 1);
-            c[idx + 1] += vgetq_lane_f64(c_01_c_11_vreg, 1);
-            c[idx + 2] += vgetq_lane_f64(c_02_c_12_vreg, 1);
-            c[idx + 3] += vgetq_lane_f64(c_03_c_13_vreg, 1);
-            c[idx + 4] += vgetq_lane_f64(c_20_c_30_vreg, 1);
-            c[idx + 5] += vgetq_lane_f64(c_21_c_31_vreg, 1);
-            c[idx + 6] += vgetq_lane_f64(c_22_c_32_vreg, 1);
-            c[idx + 7] += vgetq_lane_f64(c_23_c_33_vreg, 1);
-        }
-    }
+  C( 3, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 1);
+  C( 3, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 1);
+  C( 3, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 1);
+  C( 3, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 1);
 }
 ```
 
 Wynik: ![](compare_MMult_4x4_11_MMult_4x4_12.png)
 
 #### Optymalizacja (4x4) 13
-W tej wersji kodu dodano warunek `if (j == 0)` w pętli w funkcji `InnerKernel`, który sprawdza, czy aktualnie iterujemy po pierwszej kolumnie macierzy `B`. Jeśli tak, to wywoływana jest funkcja `PackMatrixA` do spakowania kolumny macierzy `A` do bufora `packedA`. Następnie ten bufor jest wykorzystywany w funkcji `InnerKernel` do obliczenia wartości macierzy `C`. Ta zmiana pozwala na zminimalizowanie powtarzalności pakowania kolumn macierzy `A` i poprawia wydajność poprzez zoptymalizowanie dostępu do danych.
+W tej wersji kodu zmieniono sposób ładowania danych macierzy `A` w funkcji `AddDot4x4`. Zamiast wielokrotnego dostępu do pamięci za każdym razem, gdy potrzebny jest kolejny element macierzy `A`, teraz najpierw wczytywane są dwa wektory z macierzy `A`, a następnie wykorzystywane są one wielokrotnie do obliczeń.<br>
 Kod (musiałem dokonać znów zmiany w kodzie, aby działał na moim procesorze):
 ``` C
-
-/* Create macros so that the matrices are stored in column-major order */
-
-#define A(i,j) a[ (j)*lda + (i) ]
-#define B(i,j) b[ (j)*ldb + (i) ]
-#define C(i,j) c[ (j)*ldc + (i) ]
-
-/* Block sizes */
-#define mc 256
-#define kc 128
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
-
-/* Routine for computing C = A * B + C */
-
-void AddDot4x4( int, double *, int, double *, int, double *, int );
-void PackMatrixA( int, double *, int, double * );
-
-void InnerKernel( int m, int n, int k, double *a, int lda, 
-                                       double *b, int ldb,
-                                       double *c, int ldc )
-{
-  int i, j;
-  double 
-    packedA[ m * k ];
-
-  for ( j=0; j<n; j+=4 ){        /* Loop over the columns of C, unrolled by 4 */
-    for ( i=0; i<m; i+=4 ){        /* Loop over the rows of C */
-      /* Update C( i,j ), C( i,j+1 ), C( i,j+2 ), and C( i,j+3 ) in
-	 one routine (four inner products) */
-      if ( j == 0 ) PackMatrixA( k, &A( i, 0 ), lda, &packedA[ i*k ] );
-      AddDot4x4( k, &packedA[ i*k ], 4, &B( 0,j ), ldb, &C( i,j ), ldc );
-    }
-  }
-}
-
-void MY_MMult( int m, int n, int k, double *a, int lda, 
-                                    double *b, int ldb,
-                                    double *c, int ldc )
-{
-  int i, p, pb, ib;
-
-  /* This time, we compute a mc x n block of C by a call to the InnerKernel */
-
-  for ( p=0; p<k; p+=kc ){
-    pb = min( k-p, kc );
-    for ( i=0; i<m; i+=mc ){
-      ib = min( m-i, mc );
-      InnerKernel( ib, n, pb, &A( i,p ), lda, &B(p, 0 ), ldb, &C( i,0 ), ldc );
-    }
-  }
-}
-
-
-
-void PackMatrixA( int k, double *a, int lda, double *a_to )
-{
-  int j;
-
-  for( j=0; j<k; j++){  /* loop over columns of A */
-    double 
-      *a_ij_pntr = &A( 0, j );
-
-    *a_to++ = *a_ij_pntr;
-    *a_to++ = *(a_ij_pntr+1);
-    *a_to++ = *(a_ij_pntr+2);
-    *a_to++ = *(a_ij_pntr+3);
-  }
-}
-
 #include <arm_neon.h>
 
 typedef float32x2_t v2df_t;
@@ -643,156 +455,77 @@ void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc
 Wynik: ![](compare_MMult_4x4_12_MMult_4x4_13.png)
 
 #### Optymalizacja (4x4) 14
-Funkcja `MY_MMult` została zmodyfikowana tak, aby przekazywać dodatkowy argument `first_time` do funkcji `InnerKernel`, który informuje, czy jest to pierwsze wywołanie tej funkcji w danym cyklu obliczeń. Natomiast funkcja `InnerKernel` została zmodyfikowana w taki sposób, że teraz wewnętrzne pętle są odwrócone - najpierw pakowana jest macierz B, a następnie wykonywane są obliczenia.
-Dodatkowo, dodano funkcję `PackMatrixB`, która jest wywoływana w pętli zewnętrznej funkcji `InnerKernel`, aby zapakować macierz B do postaci zorientowanej wierszami.
+Zmiany wprowadzone w kodzie obejmują dodanie funkcji `PackMatrixB` oraz parametru `first_time` w funkcji `InnerKernel`.
+Funkcja `PackMatrixB` jest analogiczna do `PackMatrixA`, ale zajmuje się pakowaniem macierzy `B` zamiast macierzy `A`. Ta funkcja jest wywoływana w pętli wewnętrznej `InnerKernel` do pakowania macierzy `B` przed wywołaniem funkcji `AddDot4x4`.
+Parametr `first_time` w funkcji `InnerKernel` jest flagą logiczną, która określa, czy jest to pierwsze wywołanie funkcji `InnerKernel` dla danego bloku macierzy `C`. Jeśli tak, to funkcja `PackMatrixA` jest wywoływana do pakowania macierzy `A` tylko raz na blok macierzy `C`, co przyspiesza obliczenia poprzez uniknięcie wielokrotnego pakowania tych samych danych.<br>
 
 Kod (musiałem dokonać znów zmiany w kodzie, aby działał na moim procesorze):
 ``` C
-/* Create macros so that the matrices are stored in column-major order */
-
-#define A(i,j) a[ (j)*lda + (i) ]
-#define B(i,j) b[ (j)*ldb + (i) ]
-#define C(i,j) c[ (j)*ldc + (i) ]
-
-/* Block sizes */
-#define mc 256
-#define kc 128
-
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
-
-/* Routine for computing C = A * B + C */
-
-void AddDot4x4( int, double *, int, double *, int, double *, int );
-void PackMatrixA( int, double *, int, double * );
-void PackMatrixB( int, double *, int, double * );
-void InnerKernel( int, int, int, double *, int, double *, int, double *, int, int );
-
-void MY_MMult( int m, int n, int k, double *a, int lda, 
-                                    double *b, int ldb,
-                                    double *c, int ldc )
-{
-  int i, p, pb, ib;
-
-  /* This time, we compute a mc x n block of C by a call to the InnerKernel */
-
-  for ( p=0; p<k; p+=kc ){
-    pb = min( k-p, kc );
-    for ( i=0; i<m; i+=mc ){
-      ib = min( m-i, mc );
-      InnerKernel( ib, n, pb, &A( i,p ), lda, &B(p, 0 ), ldb, &C( i,0 ), ldc, i==0 );
-    }
-  }
-}
-
-void InnerKernel( int m, int n, int k, double *a, int lda, 
-                                       double *b, int ldb,
-                                       double *c, int ldc, int first_time )
-{
-  int i, j;
-  double 
-    packedA[ m * k ], packedB[ k*n ];
-
-  for ( j=0; j<n; j+=4 ){        /* Loop over the columns of C, unrolled by 4 */
-    PackMatrixB( k, &B( 0, j ), ldb, &packedB[ j*k ] );
-    for ( i=0; i<m; i+=4 ){        /* Loop over the rows of C */
-      /* Update C( i,j ), C( i,j+1 ), C( i,j+2 ), and C( i,j+3 ) in
-	 one routine (four inner products) */
-      if ( j == 0 ) 
-	PackMatrixA( k, &A( i, 0 ), lda, &packedA[ i*k ] );
-      AddDot4x4( k, &packedA[ i*k ], 4, &packedB[ j*k ], k, &C( i,j ), ldc );
-    }
-  }
-}
-
-void PackMatrixA( int k, double *a, int lda, double *a_to )
-{
-  int j;
-
-  for( j=0; j<k; j++){  /* loop over columns of A */
-    double 
-      *a_ij_pntr = &A( 0, j );
-
-    *a_to     = *a_ij_pntr;
-    *(a_to+1) = *(a_ij_pntr+1);
-    *(a_to+2) = *(a_ij_pntr+2);
-    *(a_to+3) = *(a_ij_pntr+3);
-
-    a_to += 4;
-  }
-}
-
-void PackMatrixB( int k, double *b, int ldb, double *b_to )
-{
-  int i;
-  double 
-    *b_i0_pntr = &B( 0, 0 ), *b_i1_pntr = &B( 0, 1 ),
-    *b_i2_pntr = &B( 0, 2 ), *b_i3_pntr = &B( 0, 3 );
-
-  for( i=0; i<k; i++){  /* loop over rows of B */
-    *b_to++ = *b_i0_pntr++;
-    *b_to++ = *b_i1_pntr++;
-    *b_to++ = *b_i2_pntr++;
-    *b_to++ = *b_i3_pntr++;
-  }
-}
-
 #include <arm_neon.h>
 
-typedef float32x2_t v2df_t;
+typedef float64x2_t v2df_t;
 
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc) {
-    /* Define ARM NEON registers for the computation */
-    float32x2_t c_00_c_10_vreg = vdup_n_f32(0);
-    float32x2_t c_01_c_11_vreg = vdup_n_f32(0);
-    float32x2_t c_02_c_12_vreg = vdup_n_f32(0);
-    float32x2_t c_03_c_13_vreg = vdup_n_f32(0);
-    float32x2_t c_20_c_30_vreg = vdup_n_f32(0);
-    float32x2_t c_21_c_31_vreg = vdup_n_f32(0);
-    float32x2_t c_22_c_32_vreg = vdup_n_f32(0);
-    float32x2_t c_23_c_33_vreg = vdup_n_f32(0);
-    
-    /* Loop through each element of the matrices */
-    for (int p = 0; p < k; p++) {
-        float32x2_t a_0p_a_1p_vreg = vld1_f32((float32_t *)a);
-        float32x2_t a_2p_a_3p_vreg = vld1_f32((float32_t *)(a + 2));
-        float32x2_t b_p0_vreg = vdup_n_f32(*b);
-        float32x2_t b_p1_vreg = vdup_n_f32(*(b + 1));
-        float32x2_t b_p2_vreg = vdup_n_f32(*(b + 2));
-        float32x2_t b_p3_vreg = vdup_n_f32(*(b + 3));
-        
-        /* Perform matrix multiplication using ARM NEON intrinsics */
-        c_00_c_10_vreg = vfma_lane_f32(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg, 0);
-        c_01_c_11_vreg = vfma_lane_f32(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg, 0);
-        c_02_c_12_vreg = vfma_lane_f32(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg, 0);
-        c_03_c_13_vreg = vfma_lane_f32(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg, 0);
-        c_20_c_30_vreg = vfma_lane_f32(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg, 0);
-        c_21_c_31_vreg = vfma_lane_f32(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg, 0);
-        c_22_c_32_vreg = vfma_lane_f32(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg, 0);
-        c_23_c_33_vreg = vfma_lane_f32(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg, 0);
-        
-        /* Move to the next column of matrix B */
-        b += 4;
-        /* Move to the next row of matrix A */
-        a += 4;
-    }
-    
-    /* Store the results back to matrix C */
-    c[0] += c_00_c_10_vreg[0];
-    c[1] += c_01_c_11_vreg[0];
-    c[2] += c_02_c_12_vreg[0];
-    c[3] += c_03_c_13_vreg[0];
-    c[4] += c_00_c_10_vreg[1];
-    c[5] += c_01_c_11_vreg[1];
-    c[6] += c_02_c_12_vreg[1];
-    c[7] += c_03_c_13_vreg[1];
-    c[8] += c_20_c_30_vreg[0];
-    c[9] += c_21_c_31_vreg[0];
-    c[10] += c_22_c_32_vreg[0];
-    c[11] += c_23_c_33_vreg[0];
-    c[12] += c_20_c_30_vreg[1];
-    c[13] += c_21_c_31_vreg[1];
-    c[14] += c_22_c_32_vreg[1];
-    c[15] += c_23_c_33_vreg[1];
+void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc )
+{
+  int p;
+  v2df_t
+    c_00_c_10_vreg,    c_01_c_11_vreg,    c_02_c_12_vreg,    c_03_c_13_vreg,
+    c_20_c_30_vreg,    c_21_c_31_vreg,    c_22_c_32_vreg,    c_23_c_33_vreg,
+    a_0p_a_1p_vreg,
+    a_2p_a_3p_vreg,
+    b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg; 
+
+  c_00_c_10_vreg = vdupq_n_f64(0);   
+  c_01_c_11_vreg = vdupq_n_f64(0);
+  c_02_c_12_vreg = vdupq_n_f64(0); 
+  c_03_c_13_vreg = vdupq_n_f64(0); 
+  c_20_c_30_vreg = vdupq_n_f64(0);   
+  c_21_c_31_vreg = vdupq_n_f64(0);  
+  c_22_c_32_vreg = vdupq_n_f64(0);   
+  c_23_c_33_vreg = vdupq_n_f64(0); 
+
+  for ( p = 0; p < k; p++ ){
+    a_0p_a_1p_vreg = vld1q_f64(a);
+    a_2p_a_3p_vreg = vld1q_f64(a + 2);
+    a += 4;
+
+    b_p0_vreg = vdupq_n_f64(*b++);       
+    b_p1_vreg = vdupq_n_f64(*b++);   
+    b_p2_vreg = vdupq_n_f64(*b++);   
+    b_p3_vreg = vdupq_n_f64(*b++);  
+
+    /* First row and second rows */
+    c_00_c_10_vreg = vmlaq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg);
+    c_01_c_11_vreg = vmlaq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg);
+    c_02_c_12_vreg = vmlaq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg);
+    c_03_c_13_vreg = vmlaq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg);
+
+    /* Third and fourth rows */
+    c_20_c_30_vreg = vmlaq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg);
+    c_21_c_31_vreg = vmlaq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg);
+    c_22_c_32_vreg = vmlaq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg);
+    c_23_c_33_vreg = vmlaq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg);
+  }
+
+  C( 0, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 0);  
+  C( 0, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 0);  
+  C( 0, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 0);  
+  C( 0, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 0);  
+
+  C( 1, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 1);  
+  C( 1, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 1);  
+  C( 1, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 1);  
+  C( 1, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 1);  
+
+  C( 2, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 0);  
+  C( 2, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 0);  
+  C( 2, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 0);  
+  C( 2, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 0);  
+
+  C( 3, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 1);  
+  C( 3, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 1);  
+  C( 3, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 1);  
+  C( 3, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 1);  
 }
 ```
 
@@ -801,130 +534,84 @@ Wynik: ![](compare_MMult_4x4_13_MMult_4x4_14.png)
 #### Optymalizacja (4x4) 15
 W tej wersji kodu dokonano kolejnych zmian, dodając dodatkową stałą `nb` oraz statyczną tablicę `packedB`. Stała `nb` określa rozmiar bloku wierszowego macierzy B, który jest używany do pakowania macierzy B w funkcji `InnerKernel`. Natomiast tablica `packedB` jest teraz zadeklarowana jako statyczna, co oznacza, że jest przechowywana w pamięci globalnej i jest współdzielona między różnymi wywołaniami funkcji `InnerKernel`. 
 To zmniejsza liczbę alokacji i dealokacji pamięci, co może poprawić wydajność w przypadku wielokrotnego wywoływania funkcji `InnerKernel` w jednym cyklu obliczeń.
-Dodatkowo, w funkcji `InnerKernel`, tablica `packedB` jest teraz inicjalizowana tylko raz, jeśli jest to pierwsze wywołanie tej funkcji w danym cyklu obliczeń.
+Dodatkowo, w funkcji `InnerKernel`, tablica `packedB` jest teraz inicjalizowana tylko raz, jeśli jest to pierwsze wywołanie tej funkcji w danym cyklu obliczeń.<br>
 
 Kod (musiałem dokonać znów zmiany w kodzie, aby działał na moim procesorze):
 ``` C
 #include <arm_neon.h>
 
-/* Define macros for column-major order */
-#define A(i,j) a[ (j)*lda + (i) ]
-#define B(i,j) b[ (j)*ldb + (i) ]
-#define C(i,j) c[ (j)*ldc + (i) ]
+typedef float64x2_t v2df_t;
 
-/* Block sizes */
-#define mc 256
-#define kc 128
-#define nb 1000
+void AddDot4x4( int k, double *a, int lda,  double *b, int ldb, double *c, int ldc )
+{
+  int p;
+  v2df_t
+    c_00_c_10_vreg,    c_01_c_11_vreg,    c_02_c_12_vreg,    c_03_c_13_vreg,
+    c_20_c_30_vreg,    c_21_c_31_vreg,    c_22_c_32_vreg,    c_23_c_33_vreg,
+    a_0p_a_1p_vreg,
+    a_2p_a_3p_vreg,
+    b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg; 
 
-#define min( i, j ) ( (i)<(j) ? (i): (j) )
+  c_00_c_10_vreg = vdupq_n_f64(0);   
+  c_01_c_11_vreg = vdupq_n_f64(0);
+  c_02_c_12_vreg = vdupq_n_f64(0); 
+  c_03_c_13_vreg = vdupq_n_f64(0); 
+  c_20_c_30_vreg = vdupq_n_f64(0);   
+  c_21_c_31_vreg = vdupq_n_f64(0);  
+  c_22_c_32_vreg = vdupq_n_f64(0);   
+  c_23_c_33_vreg = vdupq_n_f64(0); 
 
-/* Function prototypes */
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc);
-void PackMatrixA(int k, double *a, int lda, double *a_to);
-void PackMatrixB(int k, double *b, int ldb, double *b_to);
-void InnerKernel(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc, int first_time);
+  for ( p=0; p<k; p++ ){
+    a_0p_a_1p_vreg = vld1q_f64(a);
+    a_2p_a_3p_vreg = vld1q_f64(a + 2);
+    a += 4;
 
-/* Main matrix multiplication function */
-void MY_MMult(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc) {
-    int i, p, pb, ib;
+    b_p0_vreg = vdupq_n_f64(*b++);       
+    b_p1_vreg = vdupq_n_f64(*b++);   
+    b_p2_vreg = vdupq_n_f64(*b++);   
+    b_p3_vreg = vdupq_n_f64(*b++);  
 
-    /* Compute a mc x n block of C by a call to InnerKernel */
-    for (p = 0; p < k; p += kc) {
-        pb = min(k - p, kc);
-        for (i = 0; i < m; i += mc) {
-            ib = min(m - i, mc);
-            InnerKernel(ib, n, pb, &A(i, p), lda, &B(p, 0), ldb, &C(i, 0), ldc, i == 0);
-        }
-    }
-}
+    /* First row and second rows */
+    c_00_c_10_vreg = vmlaq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg);
+    c_01_c_11_vreg = vmlaq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg);
+    c_02_c_12_vreg = vmlaq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg);
+    c_03_c_13_vreg = vmlaq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg);
 
-/* Inner kernel function */
-void InnerKernel(int m, int n, int k, double *a, int lda, double *b, int ldb, double *c, int ldc, int first_time) {
-    int i, j;
-    double packedA[m * k];
-    static double packedB[kc * nb];  // Note: using a static buffer is not thread safe...
+    /* Third and fourth rows */
+    c_20_c_30_vreg = vmlaq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg);
+    c_21_c_31_vreg = vmlaq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg);
+    c_22_c_32_vreg = vmlaq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg);
+    c_23_c_33_vreg = vmlaq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg);
+  }
 
-    for (j = 0; j < n; j += 4) {  // Loop over the columns of C, unrolled by 4
-        if (first_time)
-            PackMatrixB(k, &B(0, j), ldb, &packedB[j * k]);
-        for (i = 0; i < m; i += 4) {  // Loop over the rows of C
-            if (j == 0)
-                PackMatrixA(k, &A(i, 0), lda, &packedA[i * k]);
-            AddDot4x4(k, &packedA[i * k], 4, &packedB[j * k], k, &C(i, j), ldc);
-        }
-    }
-}
+  C( 0, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 0);  
+  C( 0, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 0);  
+  C( 0, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 0);  
+  C( 0, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 0);  
 
-/* Function to pack matrix A */
-void PackMatrixA(int k, double *a, int lda, double *a_to) {
-    for (int j = 0; j < k; j++) {  // Loop over columns of A
-        double *a_ij_pntr = &A(0, j);
-        *a_to++ = *a_ij_pntr;
-        *(a_to++) = *(a_ij_pntr + 1);
-        *(a_to++) = *(a_ij_pntr + 2);
-        *(a_to++) = *(a_ij_pntr + 3);
-    }
-}
+  C( 1, 0 ) += vgetq_lane_f64(c_00_c_10_vreg, 1);  
+  C( 1, 1 ) += vgetq_lane_f64(c_01_c_11_vreg, 1);  
+  C( 1, 2 ) += vgetq_lane_f64(c_02_c_12_vreg, 1);  
+  C( 1, 3 ) += vgetq_lane_f64(c_03_c_13_vreg, 1);  
 
-/* Function to pack matrix B */
-void PackMatrixB(int k, double *b, int ldb, double *b_to) {
-    for (int i = 0; i < k; i++) {  // Loop over rows of B
-        *b_to++ = *b++;
-        *b_to++ = *b++;
-        *b_to++ = *b++;
-        *b_to++ = *b++;
-    }
-}
+  C( 2, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 0);  
+  C( 2, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 0);  
+  C( 2, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 0);  
+  C( 2, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 0);  
 
-/* Function to perform dot product */
-void AddDot4x4(int k, double *a, int lda, double *b, int ldb, double *c, int ldc) {
-    /* ARM NEON registers for computation */
-    float64x2_t c_00_c_10_vreg = vdupq_n_f64(0);
-    float64x2_t c_01_c_11_vreg = vdupq_n_f64(0);
-    float64x2_t c_02_c_12_vreg = vdupq_n_f64(0);
-    float64x2_t c_03_c_13_vreg = vdupq_n_f64(0);
-    float64x2_t c_20_c_30_vreg = vdupq_n_f64(0);
-    float64x2_t c_21_c_31_vreg = vdupq_n_f64(0);
-    float64x2_t c_22_c_32_vreg = vdupq_n_f64(0);
-    float64x2_t c_23_c_33_vreg = vdupq_n_f64(0);
-    float64x2_t a_0p_a_1p_vreg, a_2p_a_3p_vreg;
-    float64x2_t b_p0_vreg, b_p1_vreg, b_p2_vreg, b_p3_vreg;
-
-    for (int p = 0; p < k; p++) {
-        a_0p_a_1p_vreg = vld1q_f64(a);
-        a_2p_a_3p_vreg = vld1q_f64(a + 2);
-        a += 4;
-
-        b_p0_vreg = vld1q_dup_f64(b++);
-        b_p1_vreg = vld1q_dup_f64(b++);
-        b_p2_vreg = vld1q_dup_f64(b++);
-        b_p3_vreg = vld1q_dup_f64(b++);
-
-        c_00_c_10_vreg = vfmaq_laneq_f64(c_00_c_10_vreg, a_0p_a_1p_vreg, b_p0_vreg, 0);
-        c_01_c_11_vreg = vfmaq_laneq_f64(c_01_c_11_vreg, a_0p_a_1p_vreg, b_p1_vreg, 0);
-        c_02_c_12_vreg = vfmaq_laneq_f64(c_02_c_12_vreg, a_0p_a_1p_vreg, b_p2_vreg, 0);
-        c_03_c_13_vreg = vfmaq_laneq_f64(c_03_c_13_vreg, a_0p_a_1p_vreg, b_p3_vreg, 0);
-        c_20_c_30_vreg = vfmaq_laneq_f64(c_20_c_30_vreg, a_2p_a_3p_vreg, b_p0_vreg, 0);
-        c_21_c_31_vreg = vfmaq_laneq_f64(c_21_c_31_vreg, a_2p_a_3p_vreg, b_p1_vreg, 0);
-        c_22_c_32_vreg = vfmaq_laneq_f64(c_22_c_32_vreg, a_2p_a_3p_vreg, b_p2_vreg, 0);
-        c_23_c_33_vreg = vfmaq_laneq_f64(c_23_c_33_vreg, a_2p_a_3p_vreg, b_p3_vreg, 0);
-    }
-
-    /* Store results back to matrix C */
-    vst1q_f64(c, c_00_c_10_vreg);
-    vst1q_f64(c + ldc, c_01_c_11_vreg);
-    vst1q_f64(c + 2 * ldc, c_02_c_12_vreg);
-    vst1q_f64(c + 3 * ldc, c_03_c_13_vreg);
-    vst1q_f64(c + 4 * ldc, c_20_c_30_vreg);
-    vst1q_f64(c + (4 * ldc) + 1, c_21_c_31_vreg);
-    vst1q_f64(c + (4 * ldc) + 2, c_22_c_32_vreg);
-    vst1q_f64(c + (4 * ldc) + 3, c_23_c_33_vreg);
+  C( 3, 0 ) += vgetq_lane_f64(c_20_c_30_vreg, 1);  
+  C( 3, 1 ) += vgetq_lane_f64(c_21_c_31_vreg, 1);  
+  C( 3, 2 ) += vgetq_lane_f64(c_22_c_32_vreg, 1);  
+  C( 3, 3 ) += vgetq_lane_f64(c_23_c_33_vreg, 1);  
 }
 ```
 
 Wynik: ![](compare_MMult_4x4_14_MMult_4x4_15.png)
 
 ### IV Zbiorcze wyniki
+![](plot_all.png)
 
 ### V Podsumowanie
+Największy wzrost wydajności względem wcześniejszych iteracji kodu nastąpił w momencie uycia rejestrów.
+Ostatecznie, najbardziej wydajne w moim przypadku okazało się zapisywanie spakowanych bloków macierzy A, tak że po pierwszej iteracji zewnętrznej pętli InnerKernel, wykorzystywana była ich zapisana wersja.
+Maksymalne wyniki nie przekraczają jednak 30 GFLOPS, co jest wynikiem zdecydowanie poniżej teoretycznej wydajności procesora.
