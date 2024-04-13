@@ -2,7 +2,7 @@
 % per clock cycle
 %
 
-nflops_per_cycle = 4;
+nflops_per_cycle = 12;
 
 %
 % Indicate the number of processors being used (in case you are using a
@@ -19,4 +19,4 @@ nprocessors = 1;
 % the peak clock rate...
 %
 
-GHz_of_processor = 2;
+GHz_of_processor = 3.2;
