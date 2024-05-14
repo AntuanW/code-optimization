@@ -21,9 +21,9 @@ double dclock()
     return the_time;
 }
 
-int ge(double **A, int SIZE)
+int ge(register double **A, int SIZE)
 {
-    int i, j, k;
+    register int i, j, k;
     for (k = 0; k < SIZE; k++)
     {
         for (i = k + 1; i < SIZE; i++)

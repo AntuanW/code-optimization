@@ -21,16 +21,17 @@ double dclock()
     return the_time;
 }
 
-int ge(double **A, int SIZE)
+int ge(register double **A, int SIZE)
 {
-    int i, j, k;
+    register int i, j, k;
     for (k = 0; k < SIZE; k++)
     {
         for (i = k + 1; i < SIZE; i++)
         {
+            register double multiplier = (A[i][k] / A[k][k]);
             for (j = k + 1; j < SIZE; j++)
             {
-                A[i][j] = A[i][j] - A[k][j] * (A[i][k] / A[k][k]);
+                A[i][j] = A[i][j] - A[k][j] * multiplier;
             }
         }
     }
@@ -43,10 +44,10 @@ int main(int argc, const char *argv[])
     double dtime;
     int SIZE = 1500;
     double **matrix;
-    double * matrix_;
+    double *matrix_;
     matrix_ = (double *)malloc(SIZE * SIZE * sizeof(double));
     matrix = (double **)malloc(SIZE * sizeof(double *));
-    
+
     for (i = 0; i < SIZE; i++)
     {
         matrix[i] = matrix_ + i * SIZE;

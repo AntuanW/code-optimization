@@ -5,6 +5,9 @@
 #include <sys/time.h>
 #include <time.h>
 
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define BLKSIZE 8
+
 static double gtod_ref_time_sec = 0.0;
 
 /* Adapted from the bl2_clock() routine in the BLIS library */
@@ -21,16 +24,29 @@ double dclock()
     return the_time;
 }
 
-int ge(double **A, int SIZE)
+int ge(register double **A, int SIZE)
 {
-    int i, j, k;
+    register int i, j, k;
     for (k = 0; k < SIZE; k++)
     {
         for (i = k + 1; i < SIZE; i++)
         {
-            for (j = k + 1; j < SIZE; j++)
+            register double multiplier = (A[i][k] / A[k][k]);
+            for (j = k + 1; j < SIZE;)
             {
-                A[i][j] = A[i][j] - A[k][j] * (A[i][k] / A[k][k]);
+                if (j < (max(SIZE - BLKSIZE, 0)))
+                {
+                    for (int b = 0; b < BLKSIZE; b++)
+                    {
+                        A[i][j + b] = A[i][j + b] - A[k][j + b] * multiplier;
+                    }
+                    j += BLKSIZE;
+                }
+                else
+                {
+                    A[i][j] = A[i][j] - A[k][j] * multiplier;
+                    j++;
+                }
             }
         }
     }
@@ -43,10 +59,10 @@ int main(int argc, const char *argv[])
     double dtime;
     int SIZE = 1500;
     double **matrix;
-    double * matrix_;
+    double *matrix_;
     matrix_ = (double *)malloc(SIZE * SIZE * sizeof(double));
     matrix = (double **)malloc(SIZE * sizeof(double *));
-    
+
     for (i = 0; i < SIZE; i++)
     {
         matrix[i] = matrix_ + i * SIZE;
