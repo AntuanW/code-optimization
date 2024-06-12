@@ -149,7 +149,7 @@ int main(int argc, char **argv)
             printf("retval: %d\n", retval);
             exit(1);
         }
-        printf("Real_time: %f Proc_time: %f flpops: %lld MFLOPS: %f\n", real_time, proc_time, flpops, mflops);
+        printf("Real_time: %f\nProc_time: %f\nflpops: %lld\nMFLOPS: %f\n", real_time, proc_time, flpops, mflops);
     }
     if (measure == 2)
     {
@@ -158,7 +158,7 @@ int main(int argc, char **argv)
         {
             ERROR_RETURN(retval);
         }
-        printf("\nThe total instructions executed are %lld, total cycles %lld\n", values[0], values[1]);
+        printf("instructions: %lld\ncycles: %lld\n", values[0], values[1]);
     }
 
     /*Check results*/
@@ -170,9 +170,7 @@ int main(int argc, char **argv)
             check = check + matrix[i][j];
         }
     }
-
-    printf("Check: %le \n", check);
     fflush(stdout);
     free(matrix);
-    return iret;
+    return check;
 }

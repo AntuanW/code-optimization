@@ -1,0 +1,7 @@
+Time: 1.623000e-03 
+Real_time: 0.001636
+Proc_time: 0.001635
+flpops: 985050
+MFLOPS: 602.477051
+instructions: 20413474
+cycles: 6897057
