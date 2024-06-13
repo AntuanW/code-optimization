@@ -149,7 +149,8 @@ int main(int argc, char **argv)
             printf("retval: %d\n", retval);
             exit(1);
         }
-        printf("Real_time: %f\nProc_time: %f\nflpops: %lld\nMFLOPS: %f\n", real_time, proc_time, flpops, mflops);
+        // printf("Real_time: %f\nProc_time: %f\nflpops: %lld\nMFLOPS: %f\n", real_time, proc_time, flpops, mflops);
+        printf("Real_time: %f\nflpops: %lld\nMFLOPS: %f\n", real_time, flpops, mflops);
     }
     if (measure == 2)
     {

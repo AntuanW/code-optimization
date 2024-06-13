@@ -47,6 +47,7 @@ Max Multiplex Counters   : 384
 Fast counter read (rdpmc): yes
 --------------------------------------------------------------------------------
 ```
+> 	gcc ge.c -o ge -lm -march=znver2 -I/${PAPI_DIR}/include -L/${PAPI_DIR}/lib -lpapi
 
 ### II Program wyjściowy [ge0.c]
 ```C

@@ -1,1 +1,0 @@
-gcc hello_papi.c -I/${PAPI_DIR}/include -L/${PAPI_DIR}/lib -lpapi -lm 
