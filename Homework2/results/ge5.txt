@@ -1,0 +1,66 @@
+100
+Real_time: 0.000749
+flpops: 661650
+MFLOPS: 883.377808
+instructions: 10167789
+cycles: 2905900
+300
+Real_time: 0.018408
+flpops: 17954950
+MFLOPS: 976.024658
+instructions: 272277347
+cycles: 78617559
+500
+Real_time: 0.085963
+flpops: 83208250
+MFLOPS: 968.134399
+instructions: 1258419425
+cycles: 368283196
+700
+Real_time: 0.235039
+flpops: 228421550
+MFLOPS: 971.932129
+instructions: 3450594044
+cycles: 1006671856
+900
+Real_time: 0.500292
+flpops: 485594850
+MFLOPS: 970.620911
+instructions: 7330801218
+cycles: 2138828820
+1100
+Real_time: 0.916471
+flpops: 886728150
+MFLOPS: 967.583252
+instructions: 13381040983
+cycles: 3933953791
+1300
+Real_time: 1.508821
+flpops: 1463821450
+MFLOPS: 970.196228
+instructions: 22083313291
+cycles: 6453753152
+1500
+Real_time: 2.336252
+flpops: 2248874750
+MFLOPS: 962.669434
+instructions: 33919618297
+cycles: 9962500343
+1700
+Real_time: 3.426423
+flpops: 3273888050
+MFLOPS: 955.509521
+instructions: 49371955855
+cycles: 14713781980
+1900
+Real_time: 4.804062
+flpops: 4570861350
+MFLOPS: 951.478638
+instructions: 68922326198
+cycles: 20564775031
+2100
+Real_time: 6.542527
+flpops: 6171794650
+MFLOPS: 943.347229
+instructions: 93052728922
+cycles: 27929536582
