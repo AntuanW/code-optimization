@@ -16,7 +16,7 @@ compile_all:
 	gcc ge4.c -o ge4 $(CFLAGS) $(PAPI)
 	gcc ge5.c -o ge5 $(CFLAGS) $(PAPI)
 	gcc ge6.c -o ge6 $(CFLAGS) $(PAPI)
-	gcc ge7.c -o ge7 -mavx $(CFLAGS) $(PAPI)
+	gcc ge7.c -o ge7 $(CFLAGS) $(PAPI) -mavx
 
 run_ge1:
 	echo "100" >> $(res_ge1)
