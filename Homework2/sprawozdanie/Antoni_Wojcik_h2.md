@@ -13,8 +13,8 @@
 | Wątki | 12 |
 | Max. częstotliwość | 4.4 GHz (max) |
 | | 3.8 GHz (bazowo) |
-| L1 cache | 64 KB /rdzeń (rdzenie wydajnościowe) |
-| L2 cache | 512 KB (rdzenie wydajnościowe) |
+| L1 cache | 64 KB |
+| L2 cache | 512 KB |
 | L3 cahce | 32 MB |
 | GFlops | 1,267.2 (FP32 Single Precision) |
 | GFlops/rdzeń | 211.2 |
@@ -47,10 +47,13 @@ Max Multiplex Counters   : 384
 Fast counter read (rdpmc): yes
 --------------------------------------------------------------------------------
 ```
-> 	gcc ge.c -o ge -lm -march=znver2 -I/${PAPI_DIR}/include -L/${PAPI_DIR}/lib -lpapi
+Kompilacja:
+```zsh
+gcc ge.c -o ge -lm -march=znver2 -I/${PAPI_DIR}/include -L/${PAPI_DIR}/lib -lpapi
+```
 
-### II Program wyjściowy [ge0.c]
-```C
+### II Program wyjściowy [ge1.c]
+```c
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -233,8 +236,8 @@ int main(int argc, char **argv)
 
 ### III Optymalizacje
 
-#### Optymalizacja 1 [ge1.c]
-```C
+#### Optymalizacja 1 [ge2.c]
+```c
 int ge(double **A, int SIZE) {
     int register i, j, k;
     for (k = 0; k < SIZE; k++) {
@@ -247,9 +250,10 @@ int ge(double **A, int SIZE) {
     return 0;
 }
 ```
+W porównaniu do funkcji wyjściowej, w optymalizacji 1 dodano deklarację zmiennych `i`, `j`, `k` jako register.
 
-#### Optymalizacja 2 [ge2.c]
-```C
+#### Optymalizacja 2 [ge3.c]
+```c
 int ge(double **A, int SIZE) {
     int register i, j, k;
     for (k = 0; k < SIZE; k++) {
@@ -263,9 +267,10 @@ int ge(double **A, int SIZE) {
     return 0;
 }
 ```
+Optymalizacja 2 wprowadza bardziej znaczące ulepszenie poprzez redukcję liczby operacji dzielenia i szybszy dostęp do zmiennej `multiplier`, co może przyspieszyć wykonanie wewnętrznej pętli.
 
-#### Optymalizacja 3 [ge3.c]
-```C
+#### Optymalizacja 3 [ge4.c]
+```c
 int ge(double **A, int SIZE) {
     int register i, j, k;
     for (k = 0; k < SIZE; k++) {
@@ -292,9 +297,10 @@ int ge(double **A, int SIZE) {
     return 0;
 }
 ```
+Optymalizacja 3 wprowadza zaawansowaną technikę blokowania pętli, która ma na celu redukcję narzutu kontrolnego i poprawę efektywności pamięci podręcznej, co może znacząco zwiększyć wydajność w porównaniu do poprzednich wersji.
 
-#### Optymalizacja 4 [ge4.c]
-```C
+#### Optymalizacja 4 [ge5.c]
+```c
 int ge(double *A, int SIZE) {
     int register i, j, k;
     for (k = 0; k < SIZE; k++) {
@@ -321,9 +327,10 @@ int ge(double *A, int SIZE) {
     return 0;
 }
 ```
+W porównaniu do optymalizacji 3, optymalizacja 4 zmienia sposób przechowywania i dostępu do danych macierzy, przechodząc z podwójnego wskaźnika (`double **A`) na pojedynczy wskaźnik (`double *A`) z użyciem makra `IDX` do obliczania indeksów.
 
-#### Optymalizacja 5 [ge5.c]
-```C
+#### Optymalizacja 5 [ge6.c]
+```c
 int ge(double *A, int SIZE) {
     register unsigned i, j, k;
     register double multiplier;
@@ -371,9 +378,27 @@ int ge(double *A, int SIZE) {
     return 0;
 }
 ```
+W porównaniu do optymalizacji 4, optymalizacja 5 wprowadza użycie instrukcji SIMD (Single Instruction, Multiple Data) przy wykorzystaniu rozszerzeń SSE (Streaming SIMD Extensions) do równoległego przetwarzania elementów macierzy.
 
-#### Optymalizacja 6 [ge6.c]
-```C
+
+- **Użycie SIMD**: Zastosowanie instrukcji SIMD z rozszerzeniami SSE (`__m128d`) do równoległego przetwarzania par elementów macierzy, co pozwala na wykonywanie operacji na wielu danych w jednej instrukcji.
+- **Rejestry SIMD**: Rejestry SIMD (`__m128d`) są wykorzystywane do przechowywania i manipulowania wartościami w blokach po dwa elementy.
+- **Wykorzystanie `_mm_set1_pd` i `_mm_loadu_pd`**: Funkcje `_mm_set1_pd` i `_mm_loadu_pd` są używane do ustawiania wartości w rejestrach SIMD oraz do ładowania danych do tych rejestrów.
+
+
+- **Równoległe przetwarzanie**: Użycie instrukcji SIMD umożliwia równoległe przetwarzanie dwóch elementów jednocześnie, co może znacząco zwiększyć wydajność w porównaniu do skalarnego przetwarzania danych.
+- **Lepsza przepustowość**: SIMD może zwiększyć przepustowość operacji matematycznych, redukując liczbę potrzebnych instrukcji procesora.
+- **Efektywne wykorzystanie rejestrów**: Przechowywanie wartości w rejestrach SIMD może poprawić efektywność operacji poprzez redukcję liczby dostępów do pamięci.
+
+
+- **Złożoność implementacji**: Użycie instrukcji SIMD zwiększa złożoność kodu, co może utrudnić jego czytanie i utrzymanie.
+- **Wymagana architektura**: Ta optymalizacja wymaga procesora z obsługą SSE, co może ograniczać jej zastosowanie na starszych maszynach.
+- **Wielkość bloków (`BLKSIZE`)**: Dostosowanie wielkości bloków do rozmiarów wektorów SIMD może być kluczowe dla osiągnięcia maksymalnej wydajności.
+
+Podsumowując, optymalizacja 5 wprowadza zaawansowaną technikę równoległego przetwarzania danych przy użyciu instrukcji SIMD, co może znacząco poprawić wydajność operacji macierzowych poprzez równoległe wykonywanie operacji matematycznych na parach elementów. Ta optymalizacja jest bardziej skomplikowana, ale potencjalnie oferuje większe korzyści wydajnościowe w porównaniu do poprzednich wersji.
+
+#### Optymalizacja 6 [ge7.c]
+```c
 int ge(double *A, int SIZE) {
     register unsigned i, j, k;
     register double multiplier;
@@ -423,7 +448,38 @@ int ge(double *A, int SIZE) {
     return 0;
 }
 ```
+Optymalizacja 6 wprowadza dalsze wykorzystanie SIMD, przechodząc z SSE do AVX (Advanced Vector Extensions), co pozwala na przetwarzanie większej liczby danych równocześnie.
+
+
+- **Użycie AVX (Advanced Vector Extensions)**: Zastosowanie instrukcji AVX (`__m256d`) do równoległego przetwarzania czterech elementów macierzy jednocześnie, co podwaja ilość przetwarzanych danych w porównaniu do SSE.
+- **Rejestry AVX**: Rejestry AVX (`__m256d`) są wykorzystywane do przechowywania i manipulowania wartościami w blokach po cztery elementy.
+- **Wykorzystanie `_mm256_set1_pd` i `_mm256_loadu_pd`**: Funkcje `_mm256_set1_pd` i `_mm256_loadu_pd` są używane do ustawiania wartości w rejestrach AVX oraz do ładowania danych do tych rejestrów.
+
+
+- **Większa równoległość**: Użycie AVX umożliwia równoległe przetwarzanie czterech elementów, co zwiększa wydajność w porównaniu do przetwarzania dwóch elementów z SSE.
+- **Lepsza przepustowość**: AVX oferuje większą przepustowość operacji matematycznych, umożliwiając wykonywanie większej liczby operacji na cykl procesora.
+- **Zwiększona wydajność**: Przechowywanie i manipulowanie większą liczbą danych w rejestrach AVX może znacząco poprawić wydajność przez redukcję liczby potrzebnych operacji.
+
+
+- **Złożoność implementacji**: Podobnie jak w przypadku SIMD z SSE, użycie AVX zwiększa złożoność kodu.
+- **Wymagana architektura**: Ta optymalizacja wymaga procesora z obsługą AVX, co może ograniczać jej zastosowanie na starszych maszynach.
+- **Wielkość bloków (`BLKSIZE`)**: Dostosowanie wielkości bloków do rozmiarów wektorów AVX jest kluczowe dla osiągnięcia maksymalnej wydajności.
+
+Podsumowując, optymalizacja 6 wprowadza zaawansowane techniki równoległego przetwarzania danych przy użyciu instrukcji AVX, co pozwala na przetwarzanie czterech elementów jednocześnie. Ta optymalizacja oferuje potencjalnie wyższą wydajność w porównaniu do poprzednich wersji, wykorzystując bardziej zaawansowane rozszerzenia procesora.
 
 ### IV Porównanie wydajności
 
+#### Real Time
+![ real_ime(n) ](real_time.svg)
+
+#### Instructions
+![ instructions(n) ](instructions.svg)
+
+#### Cycles
+![ cycles(n) ](cycles.svg)
+
+#### MFLOPS
+![ mflops(n) ](mflops.svg)
+
 ### V Wnioski
+Zgodnie z oczekiwaniami, najwydajniejsza okazała się ostatnia optymalizacja, a więc uzycie AVX. Pozwoliła ona zrównoleglić obliczenia, skutkując najwyższym wynikiem MFLOP/s. Jest ona jednak skomplikowana i wymaga zrozumienia wielu mechanizmów. Pod względem relacji poziomu skomplikowania do przyrostu wydajności należy wyróżnić optymalizację nr 2 (wprowadzenie mnożnika jako zmienną register). Była ona stosunkowo łatwa w implementacji, a oferowana przez nią wydajność znalazła się na 3 miejscu.
